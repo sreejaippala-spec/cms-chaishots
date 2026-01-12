@@ -345,3 +345,4 @@ docker compose -f docker-compose.prod.yml exec db psql -U admin -d cms_core
 docker compose down -v
 docker compose -f docker-compose.prod.yml up --build -d
 ```
+"# cms-chaishots" 
