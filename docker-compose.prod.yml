@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Persistent DB
+  db:
+    image: postgres:15-alpine
+    container_name: cms_db_prod
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: cms_core
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d cms_core" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # Backend API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: cms_api_prod
+    environment:
+      DATABASE_URL: postgres://admin:password123@db:5432/cms_core
+      PORT: 3000
+      JWT_SECRET: production_secret_key_change_me
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    command: sh -c "npm run migrate && npm run seed && npm run start:api"
+
+  # Worker Service
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: cms_worker_prod
+    environment:
+      DATABASE_URL: postgres://admin:password123@db:5432/cms_core
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    command: npm run start:worker
+    restart: always
+
+  # Frontend (Nginx)
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: cms_web_prod
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  postgres_data_prod:

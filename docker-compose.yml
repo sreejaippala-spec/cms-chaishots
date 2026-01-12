@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # The Managed Database
+  db:
+    image: postgres:15-alpine
+    container_name: cms_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: cms_core
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d cms_core" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # The API
+  api:
+    build: ./backend
+    container_name: cms_api
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://admin:password123@db:5432/cms_core
+      PORT: 3000
+      JWT_SECRET: production_secret_key_change_me
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command: sh -c "npm run migrate && npm run seed && npm run dev"
+
+  # The Worker
+  worker:
+    build: ./backend
+    container_name: cms_worker
+    environment:
+      DATABASE_URL: postgres://admin:password123@db:5432/cms_core
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    command: npm run start:worker
+
+  # The Frontend Web App
+  web:
+    build: ./frontend
+    container_name: cms_web
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://api:3000 # If we were using Nginx; for dev mode simpler is better
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    command: npm run dev -- --host
+
+volumes:
+  postgres_data:
