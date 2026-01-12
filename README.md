@@ -1,4 +1,4 @@
-# ChaiShorts CMS & Public Catalog API
+# ChaiShots CMS & Public Catalog API
 
 > **Assignment Submission**
 > *   **Topic**: Admin CMS + Public Catalog API + Scheduled Publishing
